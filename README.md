@@ -1,7 +1,7 @@
 # Cminus-Compiler
 Compiles the toy language Cminus into MIPS assembly using flex and bison. Main components of the compiler are the CminusParser.y (parser) and CminusScanner.l (lexical analyzer) files within the parser folder.
 
-Note: Some lines may appear to have weird spacing, but that's due to having worked on the project in Linux.
+Note: Some lines may appear to have weird spacing, but that's due to having coded the project on a Windows machine. Will eventually be fixed.
 
 ## Compiling the Compiler
 You will need a Linux machine with flex and bison, which can be installed through the following commands:
