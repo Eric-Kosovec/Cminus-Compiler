@@ -10,7 +10,7 @@ You will need a Linux machine with flex and bison, which can be installed throug
 
 Now simply run command 'make' in the root directory of the project, which creates the compiler binary called 'cmc.'
 
-## Running the Compiler:
+## Running the Compiler
 Run with the following command: 
 >./cmc [.cm's filepath]
 
@@ -19,7 +19,9 @@ This will create a MIPS assembly file of the same name with extension '.s' in th
 ## Cleaning Up
 Run 'make clean' in the root directory of the project.
 
-## Testing:
+## Testing
 **Testing will temporarily not work.**
 You will need to install Java through the following command:
 >sudo apt install default-jdk
+
+Inside the test folder, run the test.sh shell script, which will test each program against known-good output files.
