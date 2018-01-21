@@ -1,0 +1,2 @@
+libparser-g.a(cminus_variable.o): cminus_variable.c ../util/general.h \
+ cminus_variable.h

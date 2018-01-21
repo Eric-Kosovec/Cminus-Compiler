@@ -1,0 +1,2 @@
+libutil-g.a(math_helper.o): math_helper.c ../util/math_helper.h \
+ ../util/general.h

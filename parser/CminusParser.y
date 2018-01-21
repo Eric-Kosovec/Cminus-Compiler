@@ -52,7 +52,7 @@ void set_variable_info(SymTable symtab, int index, cminus_variable_t * cvar);
 cminus_variable_t * get_variable_info(SymTable symtab, int index);
 
 /*********************STATIC DECLARATIONS***********************/
-
+STATIC(void, print_usage, (void));
 STATIC(SymTable, get_vars_scope, (SymtabStack scope_stack, char * var));
 STATIC(bool, is_global_variable, (SymtabStack, char *));
 STATIC(bool, is_name_defined, (const SymTable, char *));
@@ -966,9 +966,20 @@ finalize()
 	fclose(stdout);
 }
 
+static void 
+print_usage(void)
+{
+	printf("Usage: cmc [.cm file path]\n");
+}
+
 int
 main(int argc, char * argv[])
 {
+	if (argc <= 1) {
+		print_usage();
+		return -1;
+	}
+
 	filename = argv[1];
 	initialize(filename);
 	
