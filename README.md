@@ -3,22 +3,23 @@ Compiles the toy language Cminus into MIPS assembly using flex and bison. Main c
 
 Note: Some lines may appear to have weird spacing, but that's due to having worked on the project in Linux.
 
-To compile:
-You will need flex and bison, which can be installed through the following commands:
-	sudo apt install bison
-	sudo apt install flex
+## Compiling the Compiler
+You will need a Linux machine with flex and bison, which can be installed through the following commands:
+>sudo apt install bison<br>
+>sudo apt install flex
 
-Now simply run command make in the root directory of the project, which creates the compiler binary called cmc.
+Now simply run command 'make' in the root directory of the project, which creates the compiler binary called 'cmc.'
 
-To run:
-Run ./cmc [.cm's filepath]
+## Running the Compiler:
+Run with the following command: 
+>./cmc [.cm's filepath]
 
-This will create a MIPS assembly file of the same name with extension .s in the same directory as the .cm file. This can be viewed and run in the Mars.jar program.
+This will create a MIPS assembly file of the same name with extension '.s' in the same directory as the '.cm' file. This can be viewed and run in the Mars.jar program, assuming you have Java installed.
 
-To cleanup:
-Run make clean in the root directory of the project.
+## Cleaning Up
+Run 'make clean' in the root directory of the project.
 
-To test:
-*** Testing will temporarily not work. ***
-You will need java through the following command:
-	sudo apt install default-jdk
+## Testing:
+**Testing will temporarily not work.**
+You will need to install Java through the following command:
+>sudo apt install default-jdk
