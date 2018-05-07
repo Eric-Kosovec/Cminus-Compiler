@@ -160,37 +160,37 @@ Program : Procedures
 		{
 			
 		}
-	  	| DeclList Procedures
+		| DeclList Procedures
 		{
 			
 		}
-        ;
+		;
 
 Procedures : ProcedureDecl Procedures
 		{
 			
 		}
-	   	| ProcedureDecl
+		| ProcedureDecl
 		{
 			
 		}
-	   	;
+		;
 
 ProcedureDecl : ProcedureHead ProcedureBody
 		{
 			
 		}
-        ;
+		;
 
 ProcedureHead : FunctionDecl DeclList 
 		{
 			
 		}
-	    | FunctionDecl
+		| FunctionDecl
 		{
 			
 		}
-    	;
+		;
 
 FunctionDecl : Type IDENTIFIER LPAREN RPAREN LBRACE 
 		{
@@ -225,7 +225,7 @@ FunctionDecl : Type IDENTIFIER LPAREN RPAREN LBRACE
 				postcall();
 			}
 		}
-	    ;
+		;
 
 ProcedureBody : StatementList RBRACE
 		{
@@ -245,27 +245,27 @@ ProcedureBody : StatementList RBRACE
 			
 			has_ret_statement = false;
 		}
-	    ;
+		;
 
 DeclList : Type IdentifierList SEMICOLON 
 		{
 			
 		}
-	   	| DeclList Type IdentifierList SEMICOLON
-	 	{
+		| DeclList Type IdentifierList SEMICOLON
+		{
 			
-	 	}
+		}
 		;
 
 IdentifierList : VarDecl  
 		{
 			
 		}
-        | IdentifierList COMMA VarDecl
+		| IdentifierList COMMA VarDecl
 		{
 			
 		}
-        ;
+		;
 
 VarDecl : IDENTIFIER
 		{
@@ -322,7 +322,7 @@ VarDecl : IDENTIFIER
 			set_type(currentSymtab(scope_stack), index, INT, CMINUS_SIZEOF(declare_type));
 		}
 		| IDENTIFIER LBRACKET INTCON RBRACKET
-        {	
+		{	
 			if ($3 <= 0) {
 				Cminus_error("Array size cannot be zero or negative.");
 				exit(-1);
@@ -376,13 +376,13 @@ Type : INTEGER
 		{
 			declare_type = CMINUS_FLOAT;
 		}
-        ;
+		;
 
 Statement : Assignment
 		{ 
 			
 		}
-        | IfStatement
+		| IfStatement
 		{ 
 		
 		}
@@ -390,7 +390,7 @@ Statement : Assignment
 		{ 
 		
 		}
-        | IOStatement 
+		| IOStatement 
 		{ 
 		
 		}
@@ -406,7 +406,7 @@ Statement : Assignment
 		{ 
 			
 		}
-        ;
+		;
 
 Assignment : Variable ASSIGN Expr SEMICOLON
 		{
@@ -415,7 +415,7 @@ Assignment : Variable ASSIGN Expr SEMICOLON
 			reg_free($1);
 			reg_free($3);
 		}
-        ;
+		;
 		
 IfStatement : IfToken TestAndThen ElseToken CompoundStatement
 		{
@@ -518,7 +518,7 @@ WhileStatement : WhileToken WhileExpr Statement
 			
 			print_while_end_label($2);
 		}
-        ;
+		;
 
 WhileExpr : LPAREN Expr RPAREN
 		{			
@@ -562,18 +562,18 @@ IOStatement : READ LPAREN Variable RPAREN SEMICOLON
 			read_int($3); // read value from stdin and store into variable's location
 			reg_free($3);
 		}
-        | WRITE LPAREN Expr RPAREN SEMICOLON
+		| WRITE LPAREN Expr RPAREN SEMICOLON
 		{
 			write_reg_value($3);
 			reg_free($3);
 			write_new_line();
 		}
-        | WRITE LPAREN StringConstant RPAREN SEMICOLON         
+		| WRITE LPAREN StringConstant RPAREN SEMICOLON         
 		{
 			write_const_string($3);
 			write_new_line();
 		}
-        ;
+		;
 
 ReturnStatement : RETURN Expr SEMICOLON
 		{	
@@ -597,7 +597,7 @@ ReturnStatement : RETURN Expr SEMICOLON
 			
 			reg_free($2);
 		}
-        ;
+		;
 
 ExitStatement : EXIT SEMICOLON
 		{
@@ -610,118 +610,118 @@ CompoundStatement : LBRACE StatementList RBRACE
 		{
 			
 		}
-        ;
+		;
 
 StatementList : Statement
 		{		
 			
 		}
-        | StatementList Statement
+		| StatementList Statement
 		{		
 			
 		}
-        ;
+		;
 
 Expr : SimpleExpr
 		{
 			$$ = $1;
 		}
-        | Expr OR SimpleExpr 
+		| Expr OR SimpleExpr 
 		{
 			ISSUE_OR($1, $1, $3);
 			reg_free($3);
 			$$ = $1;
 		}
-        | Expr AND SimpleExpr 
+		| Expr AND SimpleExpr 
 		{
 			ISSUE_AND($1, $1, $3);
 			reg_free($3);
 			$$ = $1;
 		}
-        | NOT SimpleExpr 
+		| NOT SimpleExpr 
 		{
 			ISSUE_SEQ($2, $2, ZERO);
 			$$ = $2;
 		}
-        ;
+		;
 
 SimpleExpr : AddExpr
 		{
 			$$ = $1;
 		}
-        | SimpleExpr EQ AddExpr
+		| SimpleExpr EQ AddExpr
 		{
 			ISSUE_SEQ($1, $1, $3);
 			reg_free($3);
 			$$ = $1;
 		}
-        | SimpleExpr NE AddExpr
+		| SimpleExpr NE AddExpr
 		{
 			ISSUE_SNE($1, $1, $3);
 			reg_free($3);
 			$$ = $1;
 		}
-        | SimpleExpr LE AddExpr
+		| SimpleExpr LE AddExpr
 		{
 			ISSUE_SLE($1, $1, $3);
 			reg_free($3);
 			$$ = $1;
 		}
-        | SimpleExpr LT AddExpr
+		| SimpleExpr LT AddExpr
 		{
 			ISSUE_SLT($1, $1, $3);
 			reg_free($3);
 			$$ = $1;
 		}
-        | SimpleExpr GE AddExpr
+		| SimpleExpr GE AddExpr
 		{
 			ISSUE_SGE($1, $1, $3);
 			reg_free($3);
 			$$ = $1;
 		}
-        | SimpleExpr GT AddExpr
+		| SimpleExpr GT AddExpr
 		{
 			ISSUE_SGT($1, $1, $3);
 			reg_free($3);
 			$$ = $1;
 		}
-        ;
+		;
 
 AddExpr : MulExpr            
 		{
 			$$ = $1;
 		}
-        | AddExpr PLUS MulExpr
+		| AddExpr PLUS MulExpr
 		{
 			ISSUE_ADD($1, $1, $3);
 			reg_free($3);
 			$$ = $1;
 		}
-        | AddExpr MINUS MulExpr
+		| AddExpr MINUS MulExpr
 		{
 			ISSUE_SUB($1, $1, $3);
 			reg_free($3);
 			$$ = $1;
 		}
-        ;
+		;
 
 MulExpr	: Factor
 		{
 			$$ = $1;
 		}
-        | MulExpr TIMES Factor
+		| MulExpr TIMES Factor
 		{
 			ISSUE_MUL($1, $1, $3);
 			reg_free($3);
 			$$ = $1;
 		}
-        | MulExpr DIVIDE Factor
+		| MulExpr DIVIDE Factor
 		{
 			ISSUE_DIV($1, $1, $3);
 			reg_free($3);
 			$$ = $1;
 		}
-        ;
+		;
 
 Factor : Variable
 		{ 
@@ -729,14 +729,16 @@ Factor : Variable
 			issue_lw($1, $1, 0);
 			$$ = $1;
 		}
-        | Constant
+		| Constant
 		{ 
+			// TODO: MAYBE CHECK FOR ZERO AND USE ZERO REG, BUT MAYBE
+			// SOMETHING ELSE WILL TRY TO WRITE INTO THE CONSTANT REG???
 			reg_idx_t reg = reg_alloc();
 			issue_li(reg, $1);
 			$$ = reg;
 		}
-        | IDENTIFIER LPAREN RPAREN
-       	{
+		| IDENTIFIER LPAREN RPAREN
+		{
 			if (is_main($1)) {
 				Cminus_error("Cannot recursively call main.");
 				exit(-1);
@@ -759,11 +761,11 @@ Factor : Variable
 			// is exactly what we would like to do.
 			$$ = V0;
 		}
-        | LPAREN Expr RPAREN
+		| LPAREN Expr RPAREN
 		{
 			$$ = $2;
 		}
-        ;
+		;
 
 Variable : IDENTIFIER
 		{
@@ -877,7 +879,7 @@ StringConstant : STRING
 		{ 
 			$$ = (char *)SymGetFieldByIndex(string_list, $1, SYM_NAME_FIELD);
 		}
-        ;
+		;
 
 Constant : INTCON
 		{ 
@@ -961,7 +963,7 @@ finalize()
 	// Free memory used by tracking while loops and if statements.
 	dlinkFreeNodes(&while_stack);
 	dlinkFreeNodes(&if_stack);
-    
+	
 	fclose(Cminus_in);
 	fclose(stdout);
 }
@@ -989,9 +991,9 @@ main(int argc, char * argv[])
 
 	print_string_labels();
   
-  	finalize();
+	finalize();
   
-  	return 0;
+	return 0;
 }
 
 SymTable

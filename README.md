@@ -20,8 +20,7 @@ This will create a MIPS assembly file of the same name with extension '.s' in th
 Run 'make clean' in the root directory of the project.
 
 ## Testing
-**Testing will temporarily not work.**
 You will need to install Java through the following command:
 >sudo apt install default-jdk
 
-Inside the test folder, run the test.sh shell script, which will test each program against known-good output files.
+Inside the test folder, run the test.sh shell script, which will test each program against known-good output files and report any issues to you.

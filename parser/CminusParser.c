@@ -565,7 +565,7 @@ static const yytype_uint16 yyrline[] =
      448,   471,   479,   501,   523,   548,   560,   565,   571,   578,
      602,   609,   615,   619,   625,   629,   635,   641,   648,   652,
      658,   664,   670,   676,   682,   690,   694,   700,   708,   712,
-     718,   726,   732,   738,   762,   768,   814,   876,   882
+     718,   726,   732,   740,   764,   770,   816,   878,   884
 };
 #endif
 
@@ -1556,7 +1556,7 @@ yyreduce:
 #line 255 "CminusParser.y" /* yacc.c:1646  */
     {
 			
-	 	}
+		}
 #line 1561 "CminusParser.c" /* yacc.c:1646  */
     break;
 
@@ -2187,15 +2187,17 @@ yyreduce:
   case 62:
 #line 733 "CminusParser.y" /* yacc.c:1646  */
     { 
+			// TODO: MAYBE CHECK FOR ZERO AND USE ZERO REG, BUT MAYBE
+			// SOMETHING ELSE WILL TRY TO WRITE INTO THE CONSTANT REG???
 			reg_idx_t reg = reg_alloc();
 			issue_li(reg, (yyvsp[0].ival));
 			(yyval.ival) = reg;
 		}
-#line 2195 "CminusParser.c" /* yacc.c:1646  */
+#line 2197 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 63:
-#line 739 "CminusParser.y" /* yacc.c:1646  */
+#line 741 "CminusParser.y" /* yacc.c:1646  */
     {
 			if (is_main((yyvsp[-2].sval))) {
 				Cminus_error("Cannot recursively call main.");
@@ -2219,19 +2221,19 @@ yyreduce:
 			// is exactly what we would like to do.
 			(yyval.ival) = V0;
 		}
-#line 2223 "CminusParser.c" /* yacc.c:1646  */
+#line 2225 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 64:
-#line 763 "CminusParser.y" /* yacc.c:1646  */
+#line 765 "CminusParser.y" /* yacc.c:1646  */
     {
 			(yyval.ival) = (yyvsp[-1].ival);
 		}
-#line 2231 "CminusParser.c" /* yacc.c:1646  */
+#line 2233 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 65:
-#line 769 "CminusParser.y" /* yacc.c:1646  */
+#line 771 "CminusParser.y" /* yacc.c:1646  */
     {
 			SymTable scope = get_vars_scope(scope_stack, (yyvsp[0].sval));
 			
@@ -2277,11 +2279,11 @@ yyreduce:
 			
 			(yyval.ival) = reg; // register holding variable location.
 		}
-#line 2281 "CminusParser.c" /* yacc.c:1646  */
+#line 2283 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 66:
-#line 815 "CminusParser.y" /* yacc.c:1646  */
+#line 817 "CminusParser.y" /* yacc.c:1646  */
     {
 			// Expr is reg in which value lies.
 			
@@ -2341,27 +2343,27 @@ yyreduce:
 			
 			(yyval.ival) = (yyvsp[-1].ival); // holds variable location
 		}
-#line 2345 "CminusParser.c" /* yacc.c:1646  */
+#line 2347 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 67:
-#line 877 "CminusParser.y" /* yacc.c:1646  */
+#line 879 "CminusParser.y" /* yacc.c:1646  */
     { 
 			(yyval.sval) = (char *)SymGetFieldByIndex(string_list, (yyvsp[0].ival), SYM_NAME_FIELD);
 		}
-#line 2353 "CminusParser.c" /* yacc.c:1646  */
+#line 2355 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 68:
-#line 883 "CminusParser.y" /* yacc.c:1646  */
+#line 885 "CminusParser.y" /* yacc.c:1646  */
     { 
 			(yyval.ival) = (yyvsp[0].ival);
 		}
-#line 2361 "CminusParser.c" /* yacc.c:1646  */
+#line 2363 "CminusParser.c" /* yacc.c:1646  */
     break;
 
 
-#line 2365 "CminusParser.c" /* yacc.c:1646  */
+#line 2367 "CminusParser.c" /* yacc.c:1646  */
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -2589,7 +2591,7 @@ yyreturn:
 #endif
   return yyresult;
 }
-#line 888 "CminusParser.y" /* yacc.c:1906  */
+#line 890 "CminusParser.y" /* yacc.c:1906  */
 
 
 /********************C ROUTINES *********************************/
@@ -2666,7 +2668,7 @@ finalize()
 	// Free memory used by tracking while loops and if statements.
 	dlinkFreeNodes(&while_stack);
 	dlinkFreeNodes(&if_stack);
-    
+	
 	fclose(Cminus_in);
 	fclose(stdout);
 }
@@ -2694,9 +2696,9 @@ main(int argc, char * argv[])
 
 	print_string_labels();
   
-  	finalize();
+	finalize();
   
-  	return 0;
+	return 0;
 }
 
 SymTable

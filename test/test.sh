@@ -15,9 +15,9 @@ do
 	# Run the appropriate MIPS assembly .s file through Mars and absorb its output.
 	# If a file of the form *.in exists, it must be used as input for the program.
 	if [ -f "$infile" ]; then
-		output=$(java -jar Mars.jar me nc "$file" < "$infile")
+		output=$(java -jar ../bin/Mars.jar me nc "$file" < "$infile")
 	else
-		output=$(java -jar Mars.jar me nc "$file")
+		output=$(java -jar ../bin/Mars.jar me nc "$file")
 	fi
 	
 	# Files of the form *.out will have the expected output MARS should generate.
