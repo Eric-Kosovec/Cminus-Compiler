@@ -14,7 +14,7 @@ Now simply run command 'make' in the root directory of the project, which create
 Run with the following command: 
 >./cmc [.cm's filepath]
 
-This will create a MIPS assembly file of the same name with extension '.s' in the same directory as the '.cm' file. This can be viewed and run in the Mars.jar program, assuming you have Java installed.
+This will create a MIPS assembly file of the same name with extension '.s' in the same directory as the '.cm' file. This can be viewed and run in the Mars.jar program within the bin directory, assuming you have Java installed.
 
 ## Cleaning Up
 Run 'make clean' in the root directory of the project.
