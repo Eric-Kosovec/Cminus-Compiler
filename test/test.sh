@@ -9,7 +9,7 @@ for file in *.s;
 do
 	printf "Testing %s...\n" "$file"
 
-	outfile="output/${file%.*}.out"
+	outfile="output/${file%.*}.output"
 	infile="input/${file%.*}.in"
 	
 	# Run the appropriate MIPS assembly .s file through Mars and absorb its output.
@@ -32,5 +32,7 @@ do
 		echo "Expected:"
 		echo "$expected"
 	fi
+
+	rm -f $file
 	
 done

@@ -6,7 +6,7 @@ done
 for file in *.s;
 do
 	echo -n "Processing $file... "
-	outfile="output/${file%.*}.out"
+	outfile="output/${file%.*}.output"
 	infile="input/${file%.*}.in"
 	
 	if [ -f $infile ]; then
