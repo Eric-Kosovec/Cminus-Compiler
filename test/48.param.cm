@@ -28,8 +28,7 @@ int d3() {
 }
 
 int d1() {
-int b;
-
+	int b;
 	b=a*200;
 	write(a); write(b); write(c); write(d);
 	write(d2());

@@ -1,1 +1,1 @@
-rm -f *.s
+rm -f tests/*.s

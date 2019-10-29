@@ -1,8 +1,6 @@
 for file in *.cm;
 do
-
 	../cmc $file
-
 done
 
 for file in *.s;
