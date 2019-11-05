@@ -90,7 +90,7 @@ extern int Cminus_debug;
 
 union YYSTYPE
 {
-#line 102 "CminusParser.y" /* yacc.c:1909  */
+#line 94 "CminusParser.y" /* yacc.c:1909  */
 
 	int ival;
 	float fval;

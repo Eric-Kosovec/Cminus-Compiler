@@ -51,12 +51,8 @@ WS                              [ \t]
 #include "CminusParser.h"
 
 #include "mips_mgmt.h"
-#include "typesystem.h"
 
-EXTERN(int, get_value, (SymTable, int));
-EXTERN(int, set_value, (SymTable, int, int));
-EXTERN(int, set_str_value, (SymTable, int, char *));
-EXTERN(void, set_type_struct, (SymTable, int, type_metadata *));
+EXTERN(int, set_ptr_field, (SymTable, int, char *, void *));
 
 extern SymTable string_list;
 %}
@@ -104,11 +100,10 @@ return                          { return RETURN; }
 \/                              { return DIVIDE;}
 ","                             { return COMMA;}
 \"[^\"]*\"                      {
-                                    char str_label[16];
-                                    memset(str_label, 0, sizeof(str_label));
-                                    sprintf(str_label, "__str%d", g_STRING_INDEX++);
+                                    char str_label[64];
+                                    snprintf(str_label, sizeof(str_label), "__str%d", g_STRING_INDEX++);
                                     Cminus_lval.ival = SymIndex(string_list, str_label);
-                                    set_str_value(string_list, Cminus_lval.ival, substr(Cminus_text, 1, Cminus_leng - 2));
+                                    set_ptr_field(string_list, Cminus_lval.ival, "value", substr(Cminus_text, 1, Cminus_leng - 2));
                                     return STRING;
                                 }
 [a-zA-Z]([a-zA-Z]|[0-9])*       {

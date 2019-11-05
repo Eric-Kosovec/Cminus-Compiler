@@ -56,25 +56,27 @@ extern int g_STRING_INDEX;
 extern unsigned long g_NEXT_WHILE_ID;
 extern unsigned long g_NEXT_IF_ID;
 
-void 		print_function_label(const char * function_name);
+void print_label(const char * label_name);
 void		print_while_start_label	(unsigned long while_id);
 char *		get_while_start_label	(unsigned long while_id);
 void		print_while_end_label	(unsigned long while_id);
 char * 		get_while_end_label	(unsigned long while_id);
 void		print_if_end_label	(unsigned long if_id);
 char *		get_if_end_label	(unsigned long if_id);
-void		print_after_else_label	(unsigned long if_id);
-char *	get_after_else_label	(unsigned long if_id);
-void      print_prolog          ();
-void      print_epilog          (reg_idx_t ret_val);
-void      print_string_labels   ();
-reg_idx_t reg_alloc             ();
+void		print_else_end_label	(unsigned long if_id);
+char *	get_else_end_label	(unsigned long if_id);
+void      print_prologue          (void);
+void 	print_epilogue(char * symtab_field);
+void      print_string_labels   (char * symtab_field);
+reg_idx_t reg_alloc             (void);
 void      reg_free              (reg_idx_t   reg);
-void      write_new_line        ();
+void      write_new_line        (void);
 void      read_int              (reg_idx_t   var_locale);
 void      write_const_int       (int         value);
 void      write_reg_value       (reg_idx_t   reg);
 void      write_const_string    (const char * str_label);
+void      issue_exit          (reg_idx_t ret_val);
+void 	issue_exit_imm(int ret_val);
 void      issue_op              (const char * op,  reg_idx_t dst,  reg_idx_t src1, reg_idx_t src2);
 void      issue_op_imm          (const char * op,  reg_idx_t dst,  reg_idx_t src,  int value);
 void		issue_op_label	(const char * op, reg_idx_t src1, reg_idx_t src2, char * label);
@@ -90,9 +92,9 @@ void      issue_la              (reg_idx_t   dst, const char* str_label);
 void		push_stack	(reg_idx_t src);
 void		pop_stack	(reg_idx_t dst);
 void		precall	(const char * function_name);
-void		postcall	();
-void		prereturn	();
-void		postreturn	();
+void		postcall	(void);
+void		prereturn	(void);
+void		postreturn	(void);
 
 #define REG_NAME(idx) g_RF.registers[(idx)].name
 #define REG_FREE(idx) g_RF.registers[(idx)].is_free

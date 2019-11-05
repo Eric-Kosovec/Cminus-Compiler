@@ -19,11 +19,10 @@
 #include <util/dlink.h>
 #include <util/string_utils.h>
 #include "mips_mgmt.h"
-#include "typesystem.h"
+#include "type_system.h"
 
-EXTERN(char *, get_str_value, (SymTable, int));
-EXTERN(int, set_value, (SymTable, int, int));
-EXTERN(int, set_str_value, (SymTable, int, char *));
+EXTERN(char *, get_ptr_field, (SymTable, int, char *));
+EXTERN(int, set_ptr_value, (SymTable, int, char *, void *));
 
 extern SymTable function_data;
 extern SymTable string_list;
@@ -33,6 +32,11 @@ int   			g_GP_NEXT_OFFSET = 0;
 int   			g_FP_NEXT_OFFSET = 0;
 unsigned long   g_NEXT_WHILE_ID = 0;
 unsigned long	g_NEXT_IF_ID = 0;
+
+char while_start_label[64];
+char while_end_label[64];
+char if_end_label[64];
+char else_end_label[64];
 
 #ifdef TEST_ME
 #define PRINTF(...) printf(__VA_ARGS__)
@@ -116,13 +120,20 @@ register_file_t g_RF = {
  * true due to "fragmentation" of indices).
  */
 reg_idx_t 
-reg_alloc()
+reg_alloc(void)
 {
-//	Should never happen in our context. WILL happen in more realistic ones!
+	reg_idx_t i;
+	
+	// Should never happen in our context. WILL happen in more realistic ones!
 	assert(g_RF.n_free > 0 && "no more registers available!"); 
 
-//	Start where we left. 
-	reg_idx_t i = g_RF.latest_free;
+	// All registers are free, so reset latest back to start.
+	if (g_RF.n_free == T9 - T0) {
+		g_RF.latest_free = T0;
+	}
+
+	// Start where we left. 
+	i = g_RF.latest_free;
 	do {
 		if (REG_FREE(i)) {
 			g_RF.latest_free = i;
@@ -130,7 +141,7 @@ reg_alloc()
 			--g_RF.n_free;
 			return i;
 		}
-// Reach end of regs which can be free? Then wrap to first reg which can be free 
+		// Reach end of regs which can be free, then wrap to first reg which can be free 
 		if (++i > T9) {
 			i = T0;
 		}
@@ -159,7 +170,7 @@ reg_free(reg_idx_t reg)
  * Issues the MIPS code sequence to print a new line on the standard output
  */
 void 
-write_new_line() 
+write_new_line(void) 
 {
 	PUTS("#\tprint new line");
 	puts("\tla $a0, .newline");
@@ -245,6 +256,10 @@ issue_op_imm(const char * op, reg_idx_t dst, reg_idx_t src, int value)
 {
 	PRINTF("#\t%s = %s (%s %d)\n", 
 		REG_NAME(dst), op, REG_NAME(src), value);
+	// Don't output an unnecessary operation of adding zero to same register.
+	if (strcmp(op, "add") == 0 && dst == src && value == 0) {
+		return;
+	}
 	printf("\t%si $%s, $%s, %d\n", op, REG_NAME(dst), REG_NAME(src), value);
 }
 
@@ -293,7 +308,7 @@ issue_jr(reg_idx_t src)
 }
 
 /*
- * Issues an sll instruction
+ * Issues an sll/srl instruction
  * <dst> holds the final result
  * <src> is the register which holds the reg value
  * <shamt> amount to shift by
@@ -351,12 +366,14 @@ issue_li(reg_idx_t dst, int value)
  *
  * Params:
  * 	dst - Destination register
- *		src - Source register
+ *	src - Source register
  */
 void 
 issue_move(reg_idx_t dst, reg_idx_t src) 
 {
-	printf("\tmove $%s, $%s\n", REG_NAME(dst), REG_NAME(src));
+	if (dst != src) {
+		printf("\tmove $%s, $%s\n", REG_NAME(dst), REG_NAME(src));
+	}
 }
 
 /*
@@ -369,6 +386,36 @@ issue_la(reg_idx_t dst, const char* str)
 {
 	PRINTF("#\t%s = %s\n", REG_NAME(dst), str);
 	printf("\tla $%s, %s\n", REG_NAME(dst), str);
+}
+
+/*
+ * Calls exit syscall using the value in the given register.
+ *
+ * Params:
+ * 	ret_reg - Register containing return value.
+ */
+void
+issue_exit(reg_idx_t ret_reg)
+{
+	PUTS("#\texit()ing the program");
+	printf("\tmove $a0, $%s\n", REG_NAME(ret_reg));
+	puts("\tli $v0, 17");
+	puts("\tsyscall");
+}
+
+/*
+ * Calls exit syscall with given return value.
+ *
+ * Params:
+ * 	ret_val - Value to give exit syscall.
+ */
+void 
+issue_exit_imm(int ret_val) 
+{
+	PUTS("#\texit()ing the program");
+	printf("\tli $a0, %d\n", ret_val);
+	puts("\tli $v0, 17");
+	puts("\tsyscall");
 }
 
 /*
@@ -402,8 +449,8 @@ pop_stack(reg_idx_t dst)
  *
  *		Locals				(low addr)
  *		Caller's fp
- *		ra
  *		s-regs
+ *		ra
  *		t-regs				(high addr)
  *
  *	With stack growth going towards the lower addresses.
@@ -411,7 +458,7 @@ pop_stack(reg_idx_t dst)
 
 /*
  * Sets up the activation record for before a function call. Saves 
- * temporary registers and the frame pointer on the stack.
+ * temporary registers and jumps to the function.
  *
  * Params:
  * 	function_name - Function that is being called.
@@ -419,6 +466,8 @@ pop_stack(reg_idx_t dst)
 void 
 precall(const char * function_name) 
 {
+	// SP is at the end of the caller's local variables.
+
 	reg_idx_t reg;
 	
 	if (function_name == NULL) {
@@ -426,60 +475,74 @@ precall(const char * function_name)
 		exit(-1);
 	}
 	
+	// Count used temp registers.
+	int used_count = 0;
 	for (reg = T0; reg <= T9; ++reg) {
-		// Place in-use temporary registers on the stack.
-		if ((reg < S0 || reg > S7) && REG_FREE(reg) == false) {
-			push_stack(reg);
+		if ((reg < S0 || reg > S7) && !REG_FREE(reg)) {
+			++used_count;
 		}
 	}
-	
-	// Point to right before fp section.
-	ISSUE_ADDI(SP, SP, -36);
-	
-	// Save caller's fp.
-	push_stack(FP);
-	
-	// Change fp to point to fp section.
-	issue_move(FP, SP);
+
+	// Allocate space for temp registers on stack.
+	ISSUE_ADDI(SP, SP, used_count * -4);
+
+	/*
+	 * Ends up looking like this on activation record:
+	 * sp -> t0
+	 *		 t1
+	 *		 ...
+	 *		 t9
+	 */
+	int offset = 0;
+	for (reg = T0; reg <= T9; ++reg) {
+		// Place in-use temporary registers on the stack.
+		if ((reg < S0 || reg > S7) && !REG_FREE(reg)) {
+			issue_sw(reg, SP, offset);
+			offset += 4;
+		}
+	}
+
+	// SP will point to last temporary register on stack. 
 	
 	issue_jal(function_name);
 }
 
 /*
  * Sets up the activation record for immediately after jumping to a function. Saves 
- * saved registers and return address on the stack.
+ * saved registers, return address, and frame pointer on the stack.
  */
 void 
 postcall() 
 {
+	// SP will point to last temporary register on stack.
 	reg_idx_t reg;
-	
-	// sp will be at fp section.
-	
-	ISSUE_ADDI(SP, SP, 8);
 	
 	// Save return address
 	push_stack(RA);
 	
-	// Move sp to before saved register section.
-	ISSUE_ADDI(SP, SP, 36);
-	
+	ISSUE_ADDI(SP, SP, 8 * -4);
+
+	// Save saved registers.
+	int offset = 0;
 	for (reg = S0; reg <= S7; ++reg) {
-		push_stack(reg);
+		issue_sw(reg, SP, offset);
+		offset += 4;
 	}
 	
-	// sp now at s7
+	// SP points to last saved register on stack.
+
+	push_stack(FP);
 	
-	// Point to fp section.
-	issue_move(SP, FP);
+	// Point FP to caller's FP on stack
+	issue_move(FP, SP);
 	
 	// Locals can now be pushed onto stack.
 	// Fall through to code.
 }
 
 /*
- * Clears up the activation record before returning from a function. Restores 
- * saved registers and the frame pointer from the stack.  Also, jumps back to the 
+ * Removes the activation record before returning from a function. Restores 
+ * saved registers and the frame pointer from the stack. Also, jumps back to the 
  * caller.
  */
 void 
@@ -487,22 +550,27 @@ prereturn()
 {
 	reg_idx_t reg;
 	
-	// sp will be at the last local data element.
+	// SP will be at the last local on stack.
 	
 	// Discard all local data.
 	issue_move(SP, FP);
 	
-	// Restore caller's fp.
+	// Restore caller's FP.
 	pop_stack(FP);
 	
-	// Restore ra value.
+	// Restore saved registers.
+	int offset = 0;
+	for (reg = S0; reg <= S7; ++reg) {
+		issue_lw(reg, SP, offset);
+		offset += 4;
+	}
+
+	ISSUE_ADDI(SP, SP, 8 * 4);
+
+	// Restore RA value.
 	pop_stack(RA);
 	
-	for (reg = S7; reg >= S0; --reg) {
-		pop_stack(reg);
-	}
-	
-	// sp now at end of temporary registers.
+	// SP now at end of temporary registers on stack.
 	
 	// Jump back to caller.
 	issue_jr(RA);
@@ -515,29 +583,40 @@ prereturn()
 void 
 postreturn() 
 {
+	// SP now at end of temporary registers on stack.
+	
 	reg_idx_t reg;
-	
-	// sp points to end of t-registers
-	
-	for (reg = T9; reg >= T0; --reg) {
-		if ((reg < S0 || reg > S7) && REG_FREE(reg) == false) {
-			pop_stack(reg);
+
+	int used_count = 0;
+	for (reg = T0; reg <= T9; ++reg) {
+		if ((reg < S0 || reg > S7) && !REG_FREE(reg)) {
+			++used_count;
 		}
 	}
 	
-	// sp now points to before where the ar was created.
+	int offset = 0;
+	for (reg = T0; reg <= T9; ++reg) {
+		if ((reg < S0 || reg > S7) && !REG_FREE(reg)) {
+			issue_lw(reg, SP, offset);
+			offset += 4;
+		}
+	}
+
+	ISSUE_ADDI(SP, SP, used_count * 4);
+
+	// SP points to before where the activation record was created.
 }
 
 /*
- * Print the function label before its code.
+ * Print the label into the code.
  *
  * Params:
- * 	function_name - Name of the function to use as a label.
+ * 	function_name - Name of the label.
  */
 void 
-print_function_label(const char * function_name) 
+print_label(const char * label_name) 
 {
-	printf("%s:\n", function_name);
+	printf("%s:\n", label_name);
 }
 
 /*
@@ -549,19 +628,13 @@ print_function_label(const char * function_name)
 void 
 print_while_start_label(unsigned long while_id) 
 {
-	printf("__whlbgn%lu:\n", while_id);
+	printf("__whl%lu:\n", while_id);
 }
 
 char *
 get_while_start_label(unsigned long while_id)
 {
-	// Will never exceed 32 characters.
-	char * while_start_label = (char *)malloc(sizeof(char) * 32);
-	if (while_start_label == NULL) {
-		return NULL;
-	}
-	memset(while_start_label, 0, sizeof(char) * 32);
-	sprintf(while_start_label, "__whlbgn%lu", while_id);
+	snprintf(while_start_label, sizeof(while_start_label), "__whl%lu", while_id);
 	return while_start_label;
 }
 
@@ -580,13 +653,7 @@ print_while_end_label(unsigned long while_id)
 char *
 get_while_end_label(unsigned long while_id)
 {
-	// Will never exceed 32 characters.
-	char * while_end_label = (char *)malloc(sizeof(char) * 32);
-	if (while_end_label == NULL) {
-		return NULL;
-	}
-	memset(while_end_label, 0, sizeof(char) * 32);
-	sprintf(while_end_label, "__whlend%lu", while_id);
+	snprintf(while_end_label, sizeof(while_end_label), "__whlend%lu", while_id);
 	return while_end_label;
 }
 
@@ -605,13 +672,7 @@ print_if_end_label(unsigned long if_id)
 char *
 get_if_end_label(unsigned long if_id)
 {
-	// Will never exceed 32 characters.
-	char * if_end_label = (char *)malloc(sizeof(char) * 32);
-	if (if_end_label == NULL) {
-		return NULL;
-	}
-	memset(if_end_label, 0, sizeof(char) * 32);
-	sprintf(if_end_label, "__ifend%lu", if_id);
+	snprintf(if_end_label, sizeof(if_end_label), "__ifend%lu", if_id);
 	return if_end_label;
 }
 
@@ -622,26 +683,20 @@ get_if_end_label(unsigned long if_id)
  * 	if_id - Id of the if statement the else is associated with.
  */
 void 
-print_after_else_label(unsigned long if_id) 
+print_else_end_label(unsigned long if_id) 
 {
-	printf("__aftr_else%lu:\n", if_id);
+	printf("__else_end%lu:\n", if_id);
 }
 
 char *
-get_after_else_label(unsigned long if_id)
+get_else_end_label(unsigned long if_id)
 {
-	// Will never exceed 32 characters.
-	char * after_end_label = (char *)malloc(sizeof(char) * 33);
-	if (after_end_label == NULL) {
-		return NULL;
-	}
-	memset(after_end_label, 0, sizeof(char) * 33);
-	sprintf(after_end_label, "__aftr_else%lu", if_id);
-	return after_end_label;
+	snprintf(else_end_label, sizeof(else_end_label), "__else_end%lu", if_id);
+	return else_end_label;
 }
 
 void 
-print_rf_state()
+print_rf_state(void)
 {
 #ifdef TEST_ME
 	printf("Register names and status:\n");
@@ -652,9 +707,9 @@ print_rf_state()
 }
 
 void
-print_prolog() 
+print_prologue(void) 
 {
-	PUTS("# prolog");
+	PUTS("# prologue");
 	puts(".data");
 	puts(".newline: .asciiz \"\\n\"");
 	puts(".text");
@@ -662,13 +717,10 @@ print_prolog()
 	puts("\tj main");
 }
 
-void
-print_epilog(reg_idx_t ret_val)
+void 
+print_epilogue(char * symtab_field) 
 {
-	PUTS("#\texit()ing the program");
-	puts("\tli $v0, 17");
-	printf("\tmove $a0, $%s\n", REG_NAME(ret_val));
-	puts("\tsyscall");
+	print_string_labels(symtab_field);
 }
 
 /*
@@ -676,7 +728,7 @@ print_epilog(reg_idx_t ret_val)
  * all string keys start with __str (which is not in the namespace of the Cminus language)
  */
 void
-print_string_labels()
+print_string_labels(char * symtab_field)
 {
 	// No strings in the code.
 	if (g_STRING_INDEX <= 0) {
@@ -684,12 +736,11 @@ print_string_labels()
 	}
 	
 	int i;
-	char string[16]; // we should never go beyond 16 characters for a string index...
+	char string[64];
 	printf(".data\n");
 	for (i = 0 ; i < g_STRING_INDEX; ++i) {
-		memset(string, 0, sizeof(string));
-		sprintf(string, "__str%d", i);
-		printf("%s: .asciiz \"%s\"\n", string, get_str_value(string_list, SymIndex(string_list, string)));
+		snprintf(string, sizeof(string), "__str%d", i);
+		printf("%s: .asciiz \"%s\"\n", string, get_ptr_field(string_list, SymIndex(string_list, string), symtab_field));
 	}
 }
 

@@ -1,0 +1,1 @@
+libparser-g.a(type_system.o): type_system.c type_system.h mips_mgmt.h

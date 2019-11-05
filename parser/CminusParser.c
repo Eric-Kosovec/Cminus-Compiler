@@ -86,35 +86,27 @@
 #include <util/ptr_convert.h>
 
 #include "mips_mgmt.h"
-#include "typesystem.h"
-#include "cminus_variable.h"
+#include "type_system.h"
 
 #define SYMTABLE_SIZE 100
 #define SYMTAB_VALUE_FIELD "value"
-#define SYMTAB_TYPE_FIELD "type"
 #define SYMTAB_VARIABLE_FIELD "variable"
 
-/*********************EXTERNAL DECLARATIONS***********************/
-
-EXTERN(void, Cminus_error, (const char*));
-EXTERN(void, Cminus_general_error, (const char*));
+/*********************EXTERNAL DECLARATIONS*********************/
+EXTERN(void, Cminus_error, (const char *));
+EXTERN(void, Cminus_general_error, (const char *));
+EXTERN(void, Cminus_compiler_error, (const char *));
 EXTERN(int, Cminus_lex, (void));
 
 /*********************GLOBAL DECLARATIONS***********************/
-
-type_metadata * get_type(SymTable symtab, int index);
-void set_type_struct(SymTable symtab, int index, type_metadata * tmd);
-void set_type(SymTable symtab, int index, data_type type, size_t bytes);
-int get_int_value(SymTable symtab, int index);
-char * get_str_value(SymTable symtab, int index);
-void set_int_value(SymTable symtab, int index, int value);
-void set_str_value(SymTable symtab, int index, char * value);
-void set_variable_info(SymTable symtab, int index, cminus_variable_t * cvar);
-cminus_variable_t * get_variable_info(SymTable symtab, int index);
+int get_int_field(SymTable symtab, int index, char * field);
+void set_int_field(SymTable symtab, int index, char * field, int value);
+void * get_ptr_field(SymTable symtab, int index, char * field);
+void set_ptr_field(SymTable symtab, int index, char * field, void * value);
 
 /*********************STATIC DECLARATIONS***********************/
 STATIC(void, print_usage, (void));
-STATIC(SymTable, get_vars_scope, (SymtabStack scope_stack, char * var));
+STATIC(SymTable, variables_scope, (SymtabStack scope_stack, char * var));
 STATIC(bool, is_global_variable, (SymtabStack, char *));
 STATIC(bool, is_name_defined, (const SymTable, char *));
 STATIC(void, declare_scope, (SymtabStack));
@@ -122,30 +114,30 @@ STATIC(void, destroy_scope, (SymtabStack));
 STATIC(int, get_name_index, (SymTable, char *));
 STATIC(int, set_name, (SymTable, char *));
 STATIC(bool, is_main, (const char *));
-STATIC(bool, is_curr_scope_global, (SymtabStack));
+STATIC(bool, is_scope_global, (SymtabStack));
 
-char * filename;
-
-// Holds variable information for the global scope and local function scope.
-SymtabStack scope_stack;
-
-// Holds all function names defined.
+// Holds all defined function names.
 SymTable function_data;
 
-// Holds all string labels defined.
+// Holds all defined string labels.
 SymTable string_list;
 
-// Stack to help with tracking nested while loops.
-DLinkList while_stack;
-DLinkList if_stack;
+// Holds variable information for the global scope and local function scope.
+static SymtabStack scope_stack;
+
+// Stacks to track nested while loops/ifs.
+static DLinkList while_stack;
+static DLinkList if_stack;
+
+static cminus_type_t identifier_type = INVALID_TYPE;
+
+static char * filename = NULL;
 
 // The function currently being compiled.
 static char * curr_function = NULL;
 
 // Indicates whether the function being compiled has a return statement.
-static bool has_ret_statement = false;
-
-static cminus_type_t declare_type;
+static bool has_ret_stmt = false;
 
 // Defines an offset from the fp for local variables in functions.
 extern int g_FP_NEXT_OFFSET;
@@ -154,7 +146,7 @@ extern int Cminus_lineno;
 
 extern FILE * Cminus_in;
 
-#line 158 "CminusParser.c" /* yacc.c:339  */
+#line 150 "CminusParser.c" /* yacc.c:339  */
 
 # ifndef YY_NULLPTR
 #  if defined __cplusplus && 201103L <= __cplusplus
@@ -234,14 +226,14 @@ extern int Cminus_debug;
 
 union YYSTYPE
 {
-#line 102 "CminusParser.y" /* yacc.c:355  */
+#line 94 "CminusParser.y" /* yacc.c:355  */
 
 	int ival;
 	float fval;
 	unsigned long ulval;
 	char * sval;
 
-#line 245 "CminusParser.c" /* yacc.c:355  */
+#line 237 "CminusParser.c" /* yacc.c:355  */
 };
 
 typedef union YYSTYPE YYSTYPE;
@@ -258,7 +250,7 @@ int Cminus_parse (void);
 
 /* Copy the second part of user declarations.  */
 
-#line 262 "CminusParser.c" /* yacc.c:358  */
+#line 254 "CminusParser.c" /* yacc.c:358  */
 
 #ifdef short
 # undef short
@@ -559,13 +551,13 @@ static const yytype_uint8 yytranslate[] =
   /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,   159,   159,   163,   169,   173,   179,   185,   189,   195,
-     230,   250,   254,   260,   264,   270,   324,   371,   375,   381,
-     385,   389,   393,   397,   401,   405,   411,   420,   429,   442,
-     448,   471,   479,   501,   523,   548,   560,   565,   571,   578,
-     602,   609,   615,   619,   625,   629,   635,   641,   648,   652,
-     658,   664,   670,   676,   682,   690,   694,   700,   708,   712,
-     718,   726,   732,   740,   764,   770,   816,   878,   884
+       0,   151,   151,   158,   167,   171,   177,   183,   188,   194,
+     224,   245,   249,   255,   259,   265,   314,   366,   370,   376,
+     380,   384,   388,   392,   396,   400,   406,   415,   424,   437,
+     443,   456,   464,   477,   490,   505,   517,   522,   528,   535,
+     560,   566,   572,   576,   582,   586,   592,   598,   605,   609,
+     615,   621,   627,   633,   639,   647,   651,   657,   665,   669,
+     675,   683,   689,   696,   722,   728,   764,   814,   820
 };
 #endif
 
@@ -1430,74 +1422,81 @@ yyreduce:
   switch (yyn)
     {
         case 2:
-#line 160 "CminusParser.y" /* yacc.c:1646  */
+#line 152 "CminusParser.y" /* yacc.c:1646  */
     {
-			
+			if (SymQueryIndex(function_data, "main") == SYM_INVALID_INDEX) {
+				Cminus_general_error("No main function defined.");
+				exit(-1);
+			}
 		}
-#line 1438 "CminusParser.c" /* yacc.c:1646  */
+#line 1433 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 3:
-#line 164 "CminusParser.y" /* yacc.c:1646  */
+#line 159 "CminusParser.y" /* yacc.c:1646  */
     {
-			
+			if (SymQueryIndex(function_data, "main") == SYM_INVALID_INDEX) {
+				Cminus_general_error("No main function defined.");
+				exit(-1);
+			}
 		}
-#line 1446 "CminusParser.c" /* yacc.c:1646  */
+#line 1444 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 4:
-#line 170 "CminusParser.y" /* yacc.c:1646  */
+#line 168 "CminusParser.y" /* yacc.c:1646  */
     {
 			
 		}
-#line 1454 "CminusParser.c" /* yacc.c:1646  */
+#line 1452 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 5:
-#line 174 "CminusParser.y" /* yacc.c:1646  */
+#line 172 "CminusParser.y" /* yacc.c:1646  */
     {
 			
 		}
-#line 1462 "CminusParser.c" /* yacc.c:1646  */
+#line 1460 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 6:
-#line 180 "CminusParser.y" /* yacc.c:1646  */
+#line 178 "CminusParser.y" /* yacc.c:1646  */
     {
 			
 		}
-#line 1470 "CminusParser.c" /* yacc.c:1646  */
+#line 1468 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 7:
-#line 186 "CminusParser.y" /* yacc.c:1646  */
+#line 184 "CminusParser.y" /* yacc.c:1646  */
     {
-			
+			// Make space for local variables.
+			ISSUE_ADDI(SP, SP, g_FP_NEXT_OFFSET);
 		}
-#line 1478 "CminusParser.c" /* yacc.c:1646  */
+#line 1477 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 8:
-#line 190 "CminusParser.y" /* yacc.c:1646  */
+#line 189 "CminusParser.y" /* yacc.c:1646  */
     {
-			
+
 		}
-#line 1486 "CminusParser.c" /* yacc.c:1646  */
+#line 1485 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 9:
-#line 196 "CminusParser.y" /* yacc.c:1646  */
+#line 195 "CminusParser.y" /* yacc.c:1646  */
     {
 			curr_function = (yyvsp[-3].sval);
 			
-			// There is no method overloading or redefining allowed in Cminus.
+			// There is no function overloading or redefining allowed in Cminus.
 			if (is_name_defined(function_data, curr_function)) {
 				Cminus_error("Function already defined.");
 				exit(-1);
 			}
 			
 			/*
-			 * Offset from the caller's fp location on the current call frame.
+			 * Offset from the caller's FP location on the current call frame.
 			 * This is meant for giving variables a space on the stack.
 			 */
 			g_FP_NEXT_OFFSET = 0;
@@ -1508,81 +1507,73 @@ yyreduce:
 			// Function will have its own scope of variables.
 			declare_scope(scope_stack);
 			
-			print_function_label(curr_function);
+			print_label(curr_function);
 			
-			/*
-			 * Don't need to do function calling code for main, as
-			 * in my Cminus (even though it's not in the spec),
-			 * recursive main calls are not allowed.
-			 */
 			if (!is_main(curr_function)) {
 				postcall();
 			}
 		}
-#line 1523 "CminusParser.c" /* yacc.c:1646  */
+#line 1517 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 10:
-#line 231 "CminusParser.y" /* yacc.c:1646  */
+#line 225 "CminusParser.y" /* yacc.c:1646  */
     {
 			destroy_scope(scope_stack);
 			
-			// Allow only the main to not have a return value.
-			if (!is_main(curr_function) && !has_ret_statement) {
+			// Allow only main to not have a return value.
+			if (!is_main(curr_function) && !has_ret_stmt) {
 				Cminus_error("Function needs to return a value.");
 				exit(-1);
 			}
 			
-			else if (is_main(curr_function) && !has_ret_statement) {
-				print_epilog(ZERO);
+			else if (is_main(curr_function) && !has_ret_stmt) {
+				issue_exit_imm(0);
 			}
 			
+			free(curr_function);
 			curr_function = NULL;
 			
-			has_ret_statement = false;
+			has_ret_stmt = false;
 		}
-#line 1545 "CminusParser.c" /* yacc.c:1646  */
+#line 1540 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 11:
-#line 251 "CminusParser.y" /* yacc.c:1646  */
+#line 246 "CminusParser.y" /* yacc.c:1646  */
     {
 			
 		}
-#line 1553 "CminusParser.c" /* yacc.c:1646  */
+#line 1548 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 12:
-#line 255 "CminusParser.y" /* yacc.c:1646  */
+#line 250 "CminusParser.y" /* yacc.c:1646  */
     {
 			
 		}
-#line 1561 "CminusParser.c" /* yacc.c:1646  */
+#line 1556 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 13:
-#line 261 "CminusParser.y" /* yacc.c:1646  */
+#line 256 "CminusParser.y" /* yacc.c:1646  */
     {
 			
 		}
-#line 1569 "CminusParser.c" /* yacc.c:1646  */
+#line 1564 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 14:
-#line 265 "CminusParser.y" /* yacc.c:1646  */
+#line 260 "CminusParser.y" /* yacc.c:1646  */
     {
 			
 		}
-#line 1577 "CminusParser.c" /* yacc.c:1646  */
+#line 1572 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 15:
-#line 271 "CminusParser.y" /* yacc.c:1646  */
-    {
-			// TODO STORE TYPE INFO ETC WITH VARIABLE USING TYPE PORTION ABOVE
-			// THIS IS FOR WHEN WE INTRODUCE FLOATS AND HAVE TO INTER-MIX INTS AND
-			// FLOATS WITH MATH/MEMORY
-			
+#line 266 "CminusParser.y" /* yacc.c:1646  */
+    {			
 			/*
 			 * The variable declaration must be in the current scope. In the
 			 * case of a global variable, the current scope (the one on top of the
@@ -1590,200 +1581,204 @@ yyreduce:
 			 * the current scope will be the function's scope.
 			 */
 			
-			// Disallow ambiguous double declarations of variables within the same scope.
+			// Disallow multiple declarations of variables within the same scope.
 			if (is_name_defined(currentSymtab(scope_stack), (yyvsp[0].sval))) {
 				Cminus_error("Identifier already defined.");
 				exit(-1);
 			}
-			
+
+			cminus_variable * variable = declare_variable();
+			if (variable == NULL) {
+				Cminus_compiler_error("Failed to allocate memory for variable struct");
+			}
+
 			// Declare the variable in the current scope.
 			int index = set_name(currentSymtab(scope_stack), (yyvsp[0].sval));
+			free((yyvsp[0].sval));
+
 			int offset = 0;
-			
-			if (is_curr_scope_global(scope_stack)) {
+			if (is_scope_global(scope_stack)) {
 				offset = g_GP_NEXT_OFFSET;
-				g_GP_NEXT_OFFSET += CMINUS_SIZEOF(declare_type); // next slot for a 4 byte value.	
+				g_GP_NEXT_OFFSET += 4; // next slot for a 4 byte value.
+				variable->global = true;
 			}
 			
 			else {
-				g_FP_NEXT_OFFSET -= CMINUS_SIZEOF(declare_type); // no offset can be 0, so must subtract first.
+				g_FP_NEXT_OFFSET -= 4; // no offset can be 0, so must subtract first.
 				offset = g_FP_NEXT_OFFSET;
+				variable->global = false;
 				
-				// Move stack pointer to location of the new variable.
-				// Essentially "pushing" the variable onto the stack without initializing.
-				ISSUE_ADDI(SP, SP, -CMINUS_SIZEOF(declare_type));
-				
-				// Note: Offset from FP will be negative, as stack looks as such:
-				//					Locals      low addr
-				//		fp -->	Caller's fp     high addr
+				/* Note: Offset from FP will be negative, as stack looks as such:
+				 *		        Locals          low addr
+				 *		fp -->	Caller's fp		high addr
+				 */
 			}
+
+			variable->type = identifier_type;
+			variable->size = (variable->type == INT) ? CMINUS_INT_SIZE : CMINUS_FLOAT_SIZE;
+			variable->offset = offset;
+			variable->reg = INVALID;
 			
-			cminus_variable_t * cvar = cminus_var_create(declare_type);
-			
-			if (cvar == NULL) {
-				fprintf(stderr, "Could not allocate memory for variable info.\n");
-				exit(-1);
-			}
-			
-			cminus_var_set_memoffset(cvar, offset);
-			set_variable_info(currentSymtab(scope_stack), index, cvar);
-			
-			set_int_value(currentSymtab(scope_stack), index, offset);
-			set_type(currentSymtab(scope_stack), index, INT, CMINUS_SIZEOF(declare_type));
+			set_ptr_field(currentSymtab(scope_stack), index, SYMTAB_VARIABLE_FIELD, variable);
 		}
-#line 1635 "CminusParser.c" /* yacc.c:1646  */
+#line 1625 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 16:
-#line 325 "CminusParser.y" /* yacc.c:1646  */
+#line 315 "CminusParser.y" /* yacc.c:1646  */
     {	
+			/*
+			 * Array will look as such:
+			 * sp --> arr[0]
+			 * 		  arr[1]
+			 * 		  ...
+			 */
+
 			if ((yyvsp[-1].ival) <= 0) {
 				Cminus_error("Array size cannot be zero or negative.");
 				exit(-1);
 			}
-			
-			// Disallow ambiguous double declarations of variables within the same scope.
+
+			// Disallow multiple declarations of variables within the same scope.
 			if (is_name_defined(currentSymtab(scope_stack), (yyvsp[-3].sval))) {
 				Cminus_error("Identifier already defined.");
+				exit(-1);
+			}
+
+			cminus_variable * variable = declare_variable();
+			if (variable == NULL) {
+				fprintf(stderr, "Failed to allocate memory for variable struct.\n");
 				exit(-1);
 			}
 			
 			// Declare the variable in the current scope.
 			int index = set_name(currentSymtab(scope_stack), (yyvsp[-3].sval));
-			int offset = 0;
+			free((yyvsp[-3].sval));
 			
-			if (is_curr_scope_global(scope_stack)) {
+			int offset = 0;
+			if (is_scope_global(scope_stack)) {
 				offset = g_GP_NEXT_OFFSET;
-				g_GP_NEXT_OFFSET += (yyvsp[-1].ival) * CMINUS_SIZEOF(declare_type); // Set offset past the array.
+				g_GP_NEXT_OFFSET += (yyvsp[-1].ival) * 4; // Set offset past the array.
+				variable->global = true;
 			}
 			
 			else {
-				offset = g_FP_NEXT_OFFSET - CMINUS_SIZEOF(declare_type);
-				g_FP_NEXT_OFFSET -= (yyvsp[-1].ival) * CMINUS_SIZEOF(declare_type); // Set offset to end of the array.
-				
-				// Set sp to end of array.
-				ISSUE_ADDI(SP, SP, -((yyvsp[-1].ival) * CMINUS_SIZEOF(declare_type)));
+				offset = g_FP_NEXT_OFFSET - (yyvsp[-1].ival) * 4; // Start of the array, lower in memory
+				g_FP_NEXT_OFFSET = offset; // Set fp offset to start of the array.
+				variable->global = false;
 			}
-			
-			cminus_variable_t * cvar = cminus_var_create(declare_type);
-			
-			if (cvar == NULL) {
-				fprintf(stderr, "Could not allocate memory for variable info.\n");
-				exit(-1);
-			}
-			
-			cminus_var_set_memoffset(cvar, offset);
-			cminus_var_set_arraydata(cvar, declare_type, (yyvsp[-1].ival));
 
-			set_variable_info(currentSymtab(scope_stack), index, cvar);
-			
-			set_int_value(currentSymtab(scope_stack), index, offset); // base of array
-			set_type(currentSymtab(scope_stack), index, INT_ARRAY, (yyvsp[-1].ival) * CMINUS_SIZEOF(declare_type)); // bytes is length * int bytes
+			variable->type = (identifier_type == INT ? INT_ARRAY : FLT_ARRAY);
+			variable->size = ((variable->type == INT) ? CMINUS_INT_SIZE : CMINUS_FLOAT_SIZE) * (yyvsp[-1].ival);
+			variable->offset = offset;
+			variable->reg = INVALID;
+
+			set_ptr_field(currentSymtab(scope_stack), index, SYMTAB_VARIABLE_FIELD, variable);
 		}
-#line 1684 "CminusParser.c" /* yacc.c:1646  */
+#line 1679 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 17:
-#line 372 "CminusParser.y" /* yacc.c:1646  */
+#line 367 "CminusParser.y" /* yacc.c:1646  */
     { 
-			declare_type = CMINUS_INT;
+			identifier_type = INT;
 		}
-#line 1692 "CminusParser.c" /* yacc.c:1646  */
+#line 1687 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 18:
-#line 376 "CminusParser.y" /* yacc.c:1646  */
+#line 371 "CminusParser.y" /* yacc.c:1646  */
     {
-			declare_type = CMINUS_FLOAT;
+			identifier_type = FLOAT;
 		}
-#line 1700 "CminusParser.c" /* yacc.c:1646  */
+#line 1695 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 19:
-#line 382 "CminusParser.y" /* yacc.c:1646  */
+#line 377 "CminusParser.y" /* yacc.c:1646  */
     { 
 			
 		}
-#line 1708 "CminusParser.c" /* yacc.c:1646  */
+#line 1703 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 20:
-#line 386 "CminusParser.y" /* yacc.c:1646  */
+#line 381 "CminusParser.y" /* yacc.c:1646  */
     { 
 		
 		}
-#line 1716 "CminusParser.c" /* yacc.c:1646  */
+#line 1711 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 21:
-#line 390 "CminusParser.y" /* yacc.c:1646  */
+#line 385 "CminusParser.y" /* yacc.c:1646  */
     { 
 		
 		}
-#line 1724 "CminusParser.c" /* yacc.c:1646  */
+#line 1719 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 22:
-#line 394 "CminusParser.y" /* yacc.c:1646  */
+#line 389 "CminusParser.y" /* yacc.c:1646  */
     { 
 		
 		}
-#line 1732 "CminusParser.c" /* yacc.c:1646  */
+#line 1727 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 23:
-#line 398 "CminusParser.y" /* yacc.c:1646  */
-    { 
-			has_ret_statement = true;
+#line 393 "CminusParser.y" /* yacc.c:1646  */
+    {
+
 		}
-#line 1740 "CminusParser.c" /* yacc.c:1646  */
+#line 1735 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 24:
-#line 402 "CminusParser.y" /* yacc.c:1646  */
+#line 397 "CminusParser.y" /* yacc.c:1646  */
     { 
 			
 		}
-#line 1748 "CminusParser.c" /* yacc.c:1646  */
+#line 1743 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 25:
-#line 406 "CminusParser.y" /* yacc.c:1646  */
+#line 401 "CminusParser.y" /* yacc.c:1646  */
     { 
 			
 		}
-#line 1756 "CminusParser.c" /* yacc.c:1646  */
+#line 1751 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 26:
-#line 412 "CminusParser.y" /* yacc.c:1646  */
+#line 407 "CminusParser.y" /* yacc.c:1646  */
     {
 			// Variable is register holding variable's address.
 			issue_sw((yyvsp[-1].ival), (yyvsp[-3].ival), 0);
 			reg_free((yyvsp[-3].ival));
 			reg_free((yyvsp[-1].ival));
 		}
-#line 1767 "CminusParser.c" /* yacc.c:1646  */
+#line 1762 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 27:
-#line 421 "CminusParser.y" /* yacc.c:1646  */
+#line 416 "CminusParser.y" /* yacc.c:1646  */
     {
-			// Label to jump to that comes after else, incase the if statement
+			// Label else end statement to jump to when the if statement
 			// evaluates to true.
-			print_after_else_label((yyvsp[-2].ulval));
+			print_else_end_label((yyvsp[-2].ulval));
 			
 			DLinkNode * victim_if_node = dlinkPop(&if_stack);
 			dlinkFreeNode(victim_if_node);
 		}
-#line 1780 "CminusParser.c" /* yacc.c:1646  */
+#line 1775 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 28:
-#line 430 "CminusParser.y" /* yacc.c:1646  */
+#line 425 "CminusParser.y" /* yacc.c:1646  */
     {
 			// Prints the label to jump to incase the if statement evaluates to false.
-			// An if can have no else statement, thus refer to no else and an else as
+			// An if can have no else statement, thus refer to no else and else as
 			// if end.
 			print_if_end_label((yyvsp[0].ulval));
 			
@@ -1791,129 +1786,91 @@ yyreduce:
 			DLinkNode * victim_if_node = dlinkPop(&if_stack);
 			dlinkFreeNode(victim_if_node);
 		}
-#line 1795 "CminusParser.c" /* yacc.c:1646  */
+#line 1790 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 29:
-#line 443 "CminusParser.y" /* yacc.c:1646  */
+#line 438 "CminusParser.y" /* yacc.c:1646  */
     {
 			(yyval.ulval) = (yyvsp[-1].ulval);
 		}
-#line 1803 "CminusParser.c" /* yacc.c:1646  */
+#line 1798 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 30:
-#line 449 "CminusParser.y" /* yacc.c:1646  */
+#line 444 "CminusParser.y" /* yacc.c:1646  */
     {
 			// Get the current if number.
 			DLinkNode * if_node = dlinkHead(&if_stack);
 			unsigned long if_number = PTR_AS_ULONG(dlinkNodeAtom(if_node));
 			
-			char * if_end_label = get_if_end_label(if_number);
-			
-			if (if_end_label == NULL) {
-				fprintf(stderr, "Could not allocate memory for label.\n");
-				exit(-1);
-			}
-			
-			ISSUE_BEQ((yyvsp[-1].ival), ZERO, if_end_label);
-			
-			free(if_end_label);
-			
+			ISSUE_BEQ((yyvsp[-1].ival), ZERO, get_if_end_label(if_number));
 			reg_free((yyvsp[-1].ival));
 			
 			(yyval.ulval) = if_number;
 		}
-#line 1828 "CminusParser.c" /* yacc.c:1646  */
+#line 1813 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 31:
-#line 472 "CminusParser.y" /* yacc.c:1646  */
+#line 457 "CminusParser.y" /* yacc.c:1646  */
     {
 			// Put the if's number from $1 onto the stack of if statement numbers.
 			DLinkNode * new_if = dlinkNodeAlloc(ULONG_AS_PTR((yyvsp[0].ulval)));
 			dlinkPush(new_if, &if_stack);
 		}
-#line 1838 "CminusParser.c" /* yacc.c:1646  */
+#line 1823 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 32:
-#line 480 "CminusParser.y" /* yacc.c:1646  */
+#line 465 "CminusParser.y" /* yacc.c:1646  */
     {
 			// Get the if number the else is associated with.
 			DLinkNode * if_node = dlinkHead(&if_stack);
 			unsigned long if_number = PTR_AS_ULONG(dlinkNodeAtom(if_node));
 			
-			char * after_else_label = get_after_else_label(if_number);
-			
-			if (after_else_label == NULL) {
-				fprintf(stderr, "Could not allocate memory for label.\n");
-				exit(-1);
-			}
-			
 			// insert jump to come after the else.
-			issue_j(after_else_label);
-			
-			free(after_else_label);
+			issue_j(get_else_end_label(if_number));
 			
 			print_if_end_label(if_number);
 		}
-#line 1862 "CminusParser.c" /* yacc.c:1646  */
+#line 1838 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 33:
-#line 502 "CminusParser.y" /* yacc.c:1646  */
+#line 478 "CminusParser.y" /* yacc.c:1646  */
     {	
 			// Exiting the while loop, so must remove its number from the stack.
 			DLinkNode * victim_while_node = dlinkPop(&while_stack);
 			dlinkFreeNode(victim_while_node);
 			
-			char * while_start_label = get_while_start_label((yyvsp[-1].ulval));
-			
-			if (while_start_label == NULL) {
-				fprintf(stderr, "Could not allocate memory for label.\n");
-				exit(-1);
-			}
-			
 			// Insert jump back to the start of the while loop.
-			issue_j(while_start_label);
-			
-			free(while_start_label);
+			issue_j(get_while_start_label((yyvsp[-1].ulval)));
 			
 			print_while_end_label((yyvsp[-1].ulval));
 		}
-#line 1886 "CminusParser.c" /* yacc.c:1646  */
+#line 1853 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 34:
-#line 524 "CminusParser.y" /* yacc.c:1646  */
+#line 491 "CminusParser.y" /* yacc.c:1646  */
     {			
 			// Get the while loop the code is in, which is at the top of the stack.
 			DLinkNode * while_node = dlinkHead(&while_stack);
 			unsigned long while_number = PTR_AS_ULONG(dlinkNodeAtom(while_node));
 			
-			char * while_end_label = get_while_end_label(while_number);
-			
-			if (while_end_label == NULL) {
-				fprintf(stderr, "Could not allocate memory for label.\n");
-				exit(-1);
-			}
-			
 			// Expr will be the register containing true or false at this point.
 			// Test and jump if need be to the end of the while loop.
-			ISSUE_BEQ((yyvsp[-1].ival), ZERO, while_end_label);
-			
-			free(while_end_label);
-			
+			ISSUE_BEQ((yyvsp[-1].ival), ZERO, get_while_end_label(while_number));
 			reg_free((yyvsp[-1].ival));
 			
 			(yyval.ulval) = while_number;
 		}
-#line 1913 "CminusParser.c" /* yacc.c:1646  */
+#line 1870 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 35:
-#line 549 "CminusParser.y" /* yacc.c:1646  */
+#line 506 "CminusParser.y" /* yacc.c:1646  */
     {
 			// Insert while number into while stack to mark the code is in 
 			// a new while loop.
@@ -1923,43 +1880,42 @@ yyreduce:
 			// Insert the while's label using the number into the code.
 			print_while_start_label((yyvsp[0].ulval));
 		}
-#line 1927 "CminusParser.c" /* yacc.c:1646  */
+#line 1884 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 36:
-#line 561 "CminusParser.y" /* yacc.c:1646  */
+#line 518 "CminusParser.y" /* yacc.c:1646  */
     {
 			read_int((yyvsp[-2].ival)); // read value from stdin and store into variable's location
 			reg_free((yyvsp[-2].ival));
 		}
-#line 1936 "CminusParser.c" /* yacc.c:1646  */
+#line 1893 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 37:
-#line 566 "CminusParser.y" /* yacc.c:1646  */
+#line 523 "CminusParser.y" /* yacc.c:1646  */
     {
 			write_reg_value((yyvsp[-2].ival));
 			reg_free((yyvsp[-2].ival));
 			write_new_line();
 		}
-#line 1946 "CminusParser.c" /* yacc.c:1646  */
+#line 1903 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 38:
-#line 572 "CminusParser.y" /* yacc.c:1646  */
+#line 529 "CminusParser.y" /* yacc.c:1646  */
     {
 			write_const_string((yyvsp[-2].sval));
 			write_new_line();
 		}
-#line 1955 "CminusParser.c" /* yacc.c:1646  */
+#line 1912 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 39:
-#line 579 "CminusParser.y" /* yacc.c:1646  */
+#line 536 "CminusParser.y" /* yacc.c:1646  */
     {	
 			if (curr_function == NULL) {
-				fprintf(stderr, "Null current function. Compiler bug.\n");
-				exit(-1);
+				Cminus_compiler_error("Null current function");
 			}
 
 			// Only do prereturn if not returning from the main 
@@ -1972,239 +1928,239 @@ yyreduce:
 			
 			// Otherwise, just exit the program.
 			else {
-				print_epilog((yyvsp[-1].ival));
+				issue_exit((yyvsp[-1].ival));
 			}
 			
 			reg_free((yyvsp[-1].ival));
+
+			has_ret_stmt = true;
 		}
-#line 1981 "CminusParser.c" /* yacc.c:1646  */
+#line 1939 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 40:
-#line 603 "CminusParser.y" /* yacc.c:1646  */
+#line 561 "CminusParser.y" /* yacc.c:1646  */
     {
-			// Print out program end code.
-			print_epilog(ZERO);
+			issue_exit(ZERO);
 		}
-#line 1990 "CminusParser.c" /* yacc.c:1646  */
+#line 1947 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 41:
-#line 610 "CminusParser.y" /* yacc.c:1646  */
+#line 567 "CminusParser.y" /* yacc.c:1646  */
     {
 			
 		}
-#line 1998 "CminusParser.c" /* yacc.c:1646  */
+#line 1955 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 42:
-#line 616 "CminusParser.y" /* yacc.c:1646  */
+#line 573 "CminusParser.y" /* yacc.c:1646  */
     {		
 			
 		}
-#line 2006 "CminusParser.c" /* yacc.c:1646  */
+#line 1963 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 43:
-#line 620 "CminusParser.y" /* yacc.c:1646  */
+#line 577 "CminusParser.y" /* yacc.c:1646  */
     {		
 			
 		}
-#line 2014 "CminusParser.c" /* yacc.c:1646  */
+#line 1971 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 44:
-#line 626 "CminusParser.y" /* yacc.c:1646  */
+#line 583 "CminusParser.y" /* yacc.c:1646  */
     {
 			(yyval.ival) = (yyvsp[0].ival);
 		}
-#line 2022 "CminusParser.c" /* yacc.c:1646  */
+#line 1979 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 45:
-#line 630 "CminusParser.y" /* yacc.c:1646  */
+#line 587 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_OR((yyvsp[-2].ival), (yyvsp[-2].ival), (yyvsp[0].ival));
 			reg_free((yyvsp[0].ival));
 			(yyval.ival) = (yyvsp[-2].ival);
 		}
-#line 2032 "CminusParser.c" /* yacc.c:1646  */
+#line 1989 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 46:
-#line 636 "CminusParser.y" /* yacc.c:1646  */
+#line 593 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_AND((yyvsp[-2].ival), (yyvsp[-2].ival), (yyvsp[0].ival));
 			reg_free((yyvsp[0].ival));
 			(yyval.ival) = (yyvsp[-2].ival);
 		}
-#line 2042 "CminusParser.c" /* yacc.c:1646  */
+#line 1999 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 47:
-#line 642 "CminusParser.y" /* yacc.c:1646  */
+#line 599 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_SEQ((yyvsp[0].ival), (yyvsp[0].ival), ZERO);
 			(yyval.ival) = (yyvsp[0].ival);
 		}
-#line 2051 "CminusParser.c" /* yacc.c:1646  */
+#line 2008 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 48:
-#line 649 "CminusParser.y" /* yacc.c:1646  */
+#line 606 "CminusParser.y" /* yacc.c:1646  */
     {
 			(yyval.ival) = (yyvsp[0].ival);
 		}
-#line 2059 "CminusParser.c" /* yacc.c:1646  */
+#line 2016 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 49:
-#line 653 "CminusParser.y" /* yacc.c:1646  */
+#line 610 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_SEQ((yyvsp[-2].ival), (yyvsp[-2].ival), (yyvsp[0].ival));
 			reg_free((yyvsp[0].ival));
 			(yyval.ival) = (yyvsp[-2].ival);
 		}
-#line 2069 "CminusParser.c" /* yacc.c:1646  */
+#line 2026 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 50:
-#line 659 "CminusParser.y" /* yacc.c:1646  */
+#line 616 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_SNE((yyvsp[-2].ival), (yyvsp[-2].ival), (yyvsp[0].ival));
 			reg_free((yyvsp[0].ival));
 			(yyval.ival) = (yyvsp[-2].ival);
 		}
-#line 2079 "CminusParser.c" /* yacc.c:1646  */
+#line 2036 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 51:
-#line 665 "CminusParser.y" /* yacc.c:1646  */
+#line 622 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_SLE((yyvsp[-2].ival), (yyvsp[-2].ival), (yyvsp[0].ival));
 			reg_free((yyvsp[0].ival));
 			(yyval.ival) = (yyvsp[-2].ival);
 		}
-#line 2089 "CminusParser.c" /* yacc.c:1646  */
+#line 2046 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 52:
-#line 671 "CminusParser.y" /* yacc.c:1646  */
+#line 628 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_SLT((yyvsp[-2].ival), (yyvsp[-2].ival), (yyvsp[0].ival));
 			reg_free((yyvsp[0].ival));
 			(yyval.ival) = (yyvsp[-2].ival);
 		}
-#line 2099 "CminusParser.c" /* yacc.c:1646  */
+#line 2056 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 53:
-#line 677 "CminusParser.y" /* yacc.c:1646  */
+#line 634 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_SGE((yyvsp[-2].ival), (yyvsp[-2].ival), (yyvsp[0].ival));
 			reg_free((yyvsp[0].ival));
 			(yyval.ival) = (yyvsp[-2].ival);
 		}
-#line 2109 "CminusParser.c" /* yacc.c:1646  */
+#line 2066 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 54:
-#line 683 "CminusParser.y" /* yacc.c:1646  */
+#line 640 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_SGT((yyvsp[-2].ival), (yyvsp[-2].ival), (yyvsp[0].ival));
 			reg_free((yyvsp[0].ival));
 			(yyval.ival) = (yyvsp[-2].ival);
 		}
-#line 2119 "CminusParser.c" /* yacc.c:1646  */
+#line 2076 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 55:
-#line 691 "CminusParser.y" /* yacc.c:1646  */
+#line 648 "CminusParser.y" /* yacc.c:1646  */
     {
 			(yyval.ival) = (yyvsp[0].ival);
 		}
-#line 2127 "CminusParser.c" /* yacc.c:1646  */
+#line 2084 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 56:
-#line 695 "CminusParser.y" /* yacc.c:1646  */
+#line 652 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_ADD((yyvsp[-2].ival), (yyvsp[-2].ival), (yyvsp[0].ival));
 			reg_free((yyvsp[0].ival));
 			(yyval.ival) = (yyvsp[-2].ival);
 		}
-#line 2137 "CminusParser.c" /* yacc.c:1646  */
+#line 2094 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 57:
-#line 701 "CminusParser.y" /* yacc.c:1646  */
+#line 658 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_SUB((yyvsp[-2].ival), (yyvsp[-2].ival), (yyvsp[0].ival));
 			reg_free((yyvsp[0].ival));
 			(yyval.ival) = (yyvsp[-2].ival);
 		}
-#line 2147 "CminusParser.c" /* yacc.c:1646  */
+#line 2104 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 58:
-#line 709 "CminusParser.y" /* yacc.c:1646  */
+#line 666 "CminusParser.y" /* yacc.c:1646  */
     {
 			(yyval.ival) = (yyvsp[0].ival);
 		}
-#line 2155 "CminusParser.c" /* yacc.c:1646  */
+#line 2112 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 59:
-#line 713 "CminusParser.y" /* yacc.c:1646  */
+#line 670 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_MUL((yyvsp[-2].ival), (yyvsp[-2].ival), (yyvsp[0].ival));
 			reg_free((yyvsp[0].ival));
 			(yyval.ival) = (yyvsp[-2].ival);
 		}
-#line 2165 "CminusParser.c" /* yacc.c:1646  */
+#line 2122 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 60:
-#line 719 "CminusParser.y" /* yacc.c:1646  */
+#line 676 "CminusParser.y" /* yacc.c:1646  */
     {
 			ISSUE_DIV((yyvsp[-2].ival), (yyvsp[-2].ival), (yyvsp[0].ival));
 			reg_free((yyvsp[0].ival));
 			(yyval.ival) = (yyvsp[-2].ival);
 		}
-#line 2175 "CminusParser.c" /* yacc.c:1646  */
+#line 2132 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 61:
-#line 727 "CminusParser.y" /* yacc.c:1646  */
+#line 684 "CminusParser.y" /* yacc.c:1646  */
     { 
 			// Variable is reg holding variable's location.
 			issue_lw((yyvsp[0].ival), (yyvsp[0].ival), 0);
 			(yyval.ival) = (yyvsp[0].ival);
 		}
-#line 2185 "CminusParser.c" /* yacc.c:1646  */
+#line 2142 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 62:
-#line 733 "CminusParser.y" /* yacc.c:1646  */
+#line 690 "CminusParser.y" /* yacc.c:1646  */
     { 
-			// TODO: MAYBE CHECK FOR ZERO AND USE ZERO REG, BUT MAYBE
-			// SOMETHING ELSE WILL TRY TO WRITE INTO THE CONSTANT REG???
+			// TODO MAKE MORE EFFICIENT, BY MANUALLY PERFORMING MATH/EXPLICITY CHANGES WHERE CONSTANT CAN BE USED
 			reg_idx_t reg = reg_alloc();
 			issue_li(reg, (yyvsp[0].ival));
 			(yyval.ival) = reg;
 		}
-#line 2197 "CminusParser.c" /* yacc.c:1646  */
+#line 2153 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 63:
-#line 741 "CminusParser.y" /* yacc.c:1646  */
+#line 697 "CminusParser.y" /* yacc.c:1646  */
     {
 			if (is_main((yyvsp[-2].sval))) {
 				Cminus_error("Cannot recursively call main.");
 				exit(-1);
 			}
 	
-			// Make sure the method exists.
+			// Make sure the function exists.
 			if (!is_name_defined(function_data, (yyvsp[-2].sval))) {
 				Cminus_error("Function does not exist.");
 				exit(-1);
@@ -2213,6 +2169,8 @@ yyreduce:
 			// Code to set up activation record and jumping to the function.
 			precall((yyvsp[-2].sval));
 			
+			free((yyvsp[-2].sval));
+
 			// Code to grab data off the stack after coming back from function call.
 			postreturn();
 			
@@ -2221,54 +2179,44 @@ yyreduce:
 			// is exactly what we would like to do.
 			(yyval.ival) = V0;
 		}
-#line 2225 "CminusParser.c" /* yacc.c:1646  */
+#line 2183 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 64:
-#line 765 "CminusParser.y" /* yacc.c:1646  */
+#line 723 "CminusParser.y" /* yacc.c:1646  */
     {
 			(yyval.ival) = (yyvsp[-1].ival);
 		}
-#line 2233 "CminusParser.c" /* yacc.c:1646  */
+#line 2191 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 65:
-#line 771 "CminusParser.y" /* yacc.c:1646  */
+#line 729 "CminusParser.y" /* yacc.c:1646  */
     {
-			SymTable scope = get_vars_scope(scope_stack, (yyvsp[0].sval));
+			SymTable scope = variables_scope(scope_stack, (yyvsp[0].sval));
 			
 			int index = SymQueryIndex(scope, (yyvsp[0].sval));
-			
-			// TODO ABSTRACT AWAY GETTING TYPES, ETC.
-			
 			if (index == SYM_INVALID_INDEX) {
 				Cminus_error("Identifier not declared.");
 				exit(-1);
 			}
-			
-			// Get the variable's metadata.
-			type_metadata * meta = get_type(scope, index);
-			
-			if (meta == NULL) {
-				fprintf(stderr, "Null type metadata returned. Compiler bug.\n");
+
+			cminus_variable * variable = (cminus_variable *)get_ptr_field(scope, index, SYMTAB_VARIABLE_FIELD);
+			if (variable == NULL) {
+				Cminus_error("Identifier not declared.");
 				exit(-1);
 			}
-			
-			data_type type = type_metadata_get_type(meta);
-			
-			// Should not be able to treat an array name as a regular variable.
-			if (type == INT_ARRAY) {
+
+			if (variable->type == INT_ARRAY || variable->type == FLT_ARRAY) {
 				Cminus_error("Array identifier needs a specified index.");
 				exit(-1);
 			}
 			
-			// TODO TRANSFORM TO METHOD CALL - GET VARIABLE MEMORY ADDR
-			
-			int offset = get_int_value(scope, index); // TODO RENAME METHOD
+			int offset = variable->offset;
 			int base = (is_global_variable(scope_stack, (yyvsp[0].sval)) ? GP : FP);
+			free((yyvsp[0].sval));
 			
 			reg_idx_t reg = reg_alloc();
-			
 			if (offset != 0) {
 				ISSUE_ADDI(reg, base, offset);	
 			}
@@ -2279,91 +2227,79 @@ yyreduce:
 			
 			(yyval.ival) = reg; // register holding variable location.
 		}
-#line 2283 "CminusParser.c" /* yacc.c:1646  */
+#line 2231 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 66:
-#line 817 "CminusParser.y" /* yacc.c:1646  */
+#line 765 "CminusParser.y" /* yacc.c:1646  */
     {
 			// Expr is reg in which value lies.
 			
-			SymTable scope = get_vars_scope(scope_stack, (yyvsp[-3].sval));
+			SymTable scope = variables_scope(scope_stack, (yyvsp[-3].sval));
 			
 			int index = SymQueryIndex(scope, (yyvsp[-3].sval));
-			
 			if (index == SYM_INVALID_INDEX) {
 				Cminus_error("Identifier not declared.");
 				exit(-1);
 			}
-			
-			int offset = get_int_value(scope, index); // array start (offset from gp or fp)
-			
-			// Get the variable's metadata.
-			type_metadata * meta = get_type(scope, index);
-			
-			if (meta == NULL) {
-				Cminus_general_error("Null type metadata returned. Compiler bug.\n");
+
+			cminus_variable * variable = (cminus_variable *)get_ptr_field(scope, index, SYMTAB_VARIABLE_FIELD);
+			if (variable == NULL) {
+				Cminus_error("Identifier not declared.");
 				exit(-1);
 			}
-			
-			data_type type = type_metadata_get_type(meta);
-			
-			// Should not be able to treat a regular variable as an array.
-			if (type != INT_ARRAY) {
-				Cminus_error("Identifier is not an integer array.");
+
+			if (variable->type != INT_ARRAY && variable->type != FLT_ARRAY) {
+				Cminus_error("Identifier is not an array.");
 				exit(-1);
 			}
-			
-			// TODO FURTHER EXPLAIN
-			
-			// Calculation of gp offset is as follows: 
-			// array base + (4 * $Expr), where $Expr is the value in the register 
-			// defined by Expr.
+
+			int offset = variable->offset; // array start (offset from gp or fp)
 			
 			ISSUE_SLL((yyvsp[-1].ival), (yyvsp[-1].ival), 2); // 4 * $Expr
 			
+			/* 
+			 * Calculation of gp offset is as follows: 
+			 * array base + (4 * $Expr), where $Expr is the value in the register 
+			 * defined by Expr.
+			 */
 			if (is_global_variable(scope_stack, (yyvsp[-3].sval))) {
 				ISSUE_ADD((yyvsp[-1].ival), (yyvsp[-1].ival), GP); // (4 * $Expr) + $GP
-				
-				// Useless to issue an instruction to add 0.
-				if (offset != 0) {
-					ISSUE_ADDI((yyvsp[-1].ival), (yyvsp[-1].ival), offset); // $GP + array base offset + (4 * $Expr)
-				}
+				ISSUE_ADDI((yyvsp[-1].ival), (yyvsp[-1].ival), offset); // $GP + array base offset + (4 * $Expr)
 			}
 			
 			// Local variable, which has an offset from the FP register.
 			// Offsets from FP are negative.
 			else {
-				if (offset != 0) {
-					ISSUE_ADDI((yyvsp[-1].ival), (yyvsp[-1].ival), -offset); // (4 * $Expr) + -base
-				}
-				
-				ISSUE_SUB((yyvsp[-1].ival), FP, (yyvsp[-1].ival)); // FP - (-base + (4 * $Expr))
+				ISSUE_ADDI((yyvsp[-1].ival), (yyvsp[-1].ival), offset); // (4 * $Expr) + base
+				ISSUE_ADD((yyvsp[-1].ival), FP, (yyvsp[-1].ival)); // FP + (base + (4 * $Expr))
 			}
+
+			free((yyvsp[-3].sval));
 			
 			(yyval.ival) = (yyvsp[-1].ival); // holds variable location
 		}
-#line 2347 "CminusParser.c" /* yacc.c:1646  */
+#line 2283 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 67:
-#line 879 "CminusParser.y" /* yacc.c:1646  */
+#line 815 "CminusParser.y" /* yacc.c:1646  */
     { 
 			(yyval.sval) = (char *)SymGetFieldByIndex(string_list, (yyvsp[0].ival), SYM_NAME_FIELD);
 		}
-#line 2355 "CminusParser.c" /* yacc.c:1646  */
+#line 2291 "CminusParser.c" /* yacc.c:1646  */
     break;
 
   case 68:
-#line 885 "CminusParser.y" /* yacc.c:1646  */
+#line 821 "CminusParser.y" /* yacc.c:1646  */
     { 
 			(yyval.ival) = (yyvsp[0].ival);
 		}
-#line 2363 "CminusParser.c" /* yacc.c:1646  */
+#line 2299 "CminusParser.c" /* yacc.c:1646  */
     break;
 
 
-#line 2367 "CminusParser.c" /* yacc.c:1646  */
+#line 2303 "CminusParser.c" /* yacc.c:1646  */
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -2591,10 +2527,10 @@ yyreturn:
 #endif
   return yyresult;
 }
-#line 890 "CminusParser.y" /* yacc.c:1906  */
+#line 826 "CminusParser.y" /* yacc.c:1906  */
 
 
-/********************C ROUTINES *********************************/
+/******************** C ROUTINES ********************/
 
 void
 Cminus_error(const char * s)
@@ -2608,17 +2544,24 @@ Cminus_general_error(const char * s)
 	fprintf(stderr, "%s: %s\n", filename, s);
 }
 
+void 
+Cminus_compiler_error(const char * explain) 
+{
+	fprintf(stderr, "Compiler Error: %s\n", explain);
+	exit(-1);
+}
+
 int
 Cminus_wrap()
 {
 	return 1;
 }
 
-static void
+static 
+void
 initialize(char * input_filename)
 {
 	Cminus_in = fopen(input_filename, "r");
-	
 	if (Cminus_in == NULL) {
 		fprintf(stderr, "Error: Could not open file %s\n", input_filename);
 		exit(-1);
@@ -2628,18 +2571,18 @@ initialize(char * input_filename)
 	int end_index = strlen(input_filename) - strlen(dot);
 	char * input_no_ext = substr(input_filename, 0, end_index);
 	char * output_filename = nssave(2, input_no_ext, ".s");
-	free(input_no_ext);
+	sfree(input_no_ext);
+
 	stdout = freopen(output_filename, "w", stdout);
-	free(output_filename);
-	
 	if (stdout == NULL) {
 		fprintf(stderr, "Error: Could not open file %s\n", output_filename);
 		exit(-1);
 	}
+	sfree(output_filename);
 	
 	scope_stack = symtabStackInit();
 
-	// declare global scope
+	// Declare global scope
 	declare_scope(scope_stack);
 	
 	function_data = SymInit(SYMTABLE_SIZE);
@@ -2652,15 +2595,13 @@ initialize(char * input_filename)
 	dlinkListInit(&if_stack, INT_AS_PTR(-1));
 }
 
-static void
-finalize()
+static 
+void
+cleanup()
 {
 	symtabStackFree(scope_stack);
-	
-	if (SymQueryIndex(function_data, "main") == SYM_INVALID_INDEX) {
-		Cminus_general_error("No main method defined.");
-		exit(-1);
-	}
+
+	free(curr_function);
 	
 	SymKill(function_data);
 	SymKill(string_list);
@@ -2673,163 +2614,122 @@ finalize()
 	fclose(stdout);
 }
 
-static void 
+static 
+void 
 print_usage(void)
 {
 	printf("Usage: cmc [.cm file path]\n");
 }
 
-int
-main(int argc, char * argv[])
+static 
+SymTable 
+variables_scope(SymtabStack scope_stack, char * var)
 {
-	if (argc <= 1) {
-		print_usage();
-		return -1;
+	if (scope_stack == NULL || var == NULL) {
+		Cminus_compiler_error("variables_scope given a null pointer");
 	}
-
-	filename = argv[1];
-	initialize(filename);
 	
-	print_prolog();
-
-	Cminus_parse();
-
-	print_string_labels();
-  
-	finalize();
-  
-	return 0;
-}
-
-SymTable
-get_vars_scope(SymtabStack scope_stack, char * var)
-{
-	SymTable scope = NULL;
-	bool is_global;
-	
-	if (scope_stack && var) {
-		is_global = is_global_variable(scope_stack, var);
-		
-		// Now must get from appropriate symtable
-		scope = (is_global ? lastSymtab(scope_stack) : currentSymtab(scope_stack));
-	}
+	bool is_global = is_global_variable(scope_stack, var);
+	SymTable scope = (is_global ? lastSymtab(scope_stack) : currentSymtab(scope_stack));
 
 	return scope;
 }
 
-inline type_metadata *
-get_type(SymTable symtab, int index)
+inline 
+int
+get_int_field(SymTable symtab, int index, char * field)
 {
-	return (type_metadata *)SymGetFieldByIndex(symtab, index, SYMTAB_TYPE_FIELD);
-}
-
-inline cminus_variable_t *
-get_variable_info(SymTable symtab, int index)
-{
-	return (cminus_variable_t *)SymGetFieldByIndex(symtab, index, SYMTAB_VARIABLE_FIELD);
-}
-
-inline void
-set_variable_info(SymTable symtab, int index, cminus_variable_t * cvar)
-{
-	SymPutFieldByIndex(symtab, index, SYMTAB_VARIABLE_FIELD, (Generic)cvar);
-}
-
-inline void
-set_type_struct(SymTable symtab, int index, type_metadata * tmd)
-{
-	SymPutFieldByIndex(symtab, index, SYMTAB_TYPE_FIELD, (Generic)tmd);
-}
-
-void
-set_type(SymTable symtab, int index, data_type type, size_t bytes)
-{
-	// Create the type metadata structure with the given arguments.
-	type_metadata * metadata = type_metadata_create();
-	
-	if (metadata == NULL) {
-		Cminus_general_error("Failed to allocate memory.\n");
-		exit(-1);
+	if (symtab == NULL || field == NULL) {
+		Cminus_compiler_error("get_int_field given a null pointer");
 	}
-	
-	type_metadata_init(metadata, type, bytes);
-	
-	SymPutFieldByIndex(symtab, index, SYMTAB_TYPE_FIELD, (Generic)metadata);
+	return PTR_AS_INT(SymGetFieldByIndex(symtab, index, field));
 }
 
-inline int
-get_int_value(SymTable symtab, int index)
+inline 
+void
+set_int_field(SymTable symtab, int index, char * field, int value)
 {
-	return PTR_AS_INT(SymGetFieldByIndex(symtab, index, SYMTAB_VALUE_FIELD));
+	if (symtab == NULL || field == NULL) {
+		Cminus_compiler_error("set_int_field given a null pointer");
+	}
+	SymPutFieldByIndex(symtab, index, field, INT_AS_PTR(value));
 }
 
-// TODO RENAME AS APPROPRIATE
-inline char *
-get_str_value(SymTable symtab, int index)
+inline 
+void 
+set_ptr_field(SymTable symtab, int index, char * field, void * value) 
 {
-	return (char *)SymGetFieldByIndex(symtab, index, SYMTAB_VALUE_FIELD);
+	if (symtab == NULL || field == NULL || value == NULL) {
+		Cminus_compiler_error("set_ptr_field given a null pointer");
+	}
+	SymPutFieldByIndex(symtab, index, field, value);
 }
 
-inline void
-set_int_value(SymTable symtab, int index, int value)
+inline 
+void * 
+get_ptr_field(SymTable symtab, int index, char * field) 
 {
-	SymPutFieldByIndex(symtab, index, SYMTAB_VALUE_FIELD, INT_AS_PTR(value));
+	if (symtab == NULL || field == NULL) {
+		Cminus_compiler_error("get_ptr_field given a null pointer");
+	}
+	return SymGetFieldByIndex(symtab, index, field);
 }
 
-inline void
-set_str_value(SymTable symtab, int index, char * value)
-{
-	SymPutFieldByIndex(symtab, index, SYMTAB_VALUE_FIELD, (Generic)value);
-}
-
-static void
+static 
+void
 declare_scope(SymtabStack stack)
 {
-	if (stack) {
+	if (stack != NULL) {
 		SymTable new_scope = beginScope(stack);
 		SymInitField(new_scope, SYMTAB_VALUE_FIELD, INT_AS_PTR(-1), NULL);
-		SymInitField(new_scope, SYMTAB_TYPE_FIELD, INT_AS_PTR(-1), NULL);
+		SymInitField(new_scope, SYMTAB_VARIABLE_FIELD, NULL, cleanup_variable);
 	}
 }
 
-static void
+static 
+void
 destroy_scope(SymtabStack stack)
 {
-	if (stack && stackSize(stack) > 0) {
+	if (stack != NULL && stackSize(stack) > 0) {
 		SymTable old_scope = endScope(stack);
-		SymKillField(old_scope, SYMTAB_TYPE_FIELD);
+		SymKillField(old_scope, SYMTAB_VARIABLE_FIELD);
 		SymKillField(old_scope, SYMTAB_VALUE_FIELD);
 		SymKill(old_scope);
 	}
 }
 
-static int
+static 
+int
 get_name_index(SymTable symtab, char * name)
 {
-	if (!symtab || !name) {
-		Cminus_general_error("get_name_index given a null pointer. Compiler bug.\n");
-		exit(-1);
+	if (symtab == NULL || name == NULL) {
+		Cminus_compiler_error("get_name_index given a null pointer");
 	}
 	
 	return SymQueryIndex(symtab, name);
 }
 
-static int
+static 
+int
 set_name(SymTable symtab, char * name)
 {
-	if (!symtab || !name) {
-		Cminus_general_error("set_name given a null pointer. Compiler bug.\n");
-		exit(-1);
+	if (symtab == NULL || name == NULL) {
+		Cminus_compiler_error("set_name given a null pointer");
 	}
 
 	return SymIndex(symtab, name);
 }
 
-static bool
+static 
+bool
 is_global_variable(SymtabStack stack, char * identifier_name)
 {
 	bool is_global = false;
 	
+	if (stack == NULL || identifier_name == NULL) {
+		Cminus_compiler_error("is_global_variable given a null pointer");
+	}
+
 	// Check the local scope for the variable.
 	int index = SymQueryIndex(currentSymtab(stack), identifier_name);
 	
@@ -2848,27 +2748,48 @@ is_global_variable(SymtabStack stack, char * identifier_name)
 	return is_global;
 }
 
-static bool
+static 
+bool
 is_name_defined(const SymTable symtab, char * name)
 {
-	if (symtab == NULL || name == NULL) {
-		Cminus_general_error("is_name_defined given a null pointer. Compiler bug.\n");
-		exit(-1);
-	}
-	
-	return SymQueryIndex(symtab, name) != SYM_INVALID_INDEX;
+	return symtab != NULL && name != NULL && SymQueryIndex(symtab, name) != SYM_INVALID_INDEX;
 }
 
-static inline bool
-is_curr_scope_global(SymtabStack scope_stack)
+static inline 
+bool
+is_scope_global(SymtabStack scope_stack)
 {
-	return stackSize(scope_stack) == 1;
+	return scope_stack != NULL && stackSize(scope_stack) == 1;
 }
 
-static inline bool
+static inline 
+bool
 is_main(const char * function_name)
 {
-	return strcmp(function_name, "main") == 0;
+	return function_name != NULL && strcmp(function_name, "main") == 0;
+}
+
+int
+main(int argc, char * argv[])
+{
+	if (argc <= 1) {
+		print_usage();
+		return -1;
+	}
+
+	filename = argv[1];
+
+	initialize(filename);
+	
+	print_prologue();
+
+	Cminus_parse();
+
+	print_epilogue(SYMTAB_VALUE_FIELD);
+  
+	cleanup();
+  
+	return 0;
 }
 
 /******************END OF C ROUTINES**********************/
